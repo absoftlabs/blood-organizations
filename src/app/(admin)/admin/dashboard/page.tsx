@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0; 
 import { getDb } from "@/lib/mongodb";
 import { Doaner } from "@/types/user";
 
