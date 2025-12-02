@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
 import { Doaner } from "@/types/user";
 
@@ -10,9 +10,9 @@ interface UpdateDonerBody {
     isBanned?: boolean;
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(request: NextRequest) {
     try {
-        const body: UpdateDonerBody = await req.json();
+        const body = (await request.json()) as UpdateDonerBody;
 
         if (!body.email) {
             return NextResponse.json(
@@ -46,13 +46,10 @@ export async function PATCH(req: Request) {
 
         update.updatedAt = new Date();
 
-        // ⚠️ দুইভাবে match করবো: normalized এবং raw – যাতে case issue না থাকে
+        // দুইভাবে match করবো: normalized এবং raw – যাতে case issue না থাকে
         const result = await doaners.updateOne(
             {
-                $or: [
-                    { email: normalizedEmail },
-                    { email: rawEmail },
-                ],
+                $or: [{ email: normalizedEmail }, { email: rawEmail }],
             },
             { $set: update }
         );
