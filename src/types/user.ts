@@ -8,8 +8,10 @@ export interface Doaner {
     bloodGroup: string;
     passwordHash: string;
 
-    // approval + profile related
-    isApproved: boolean; // নতুন ফিল্ড
+    isApproved: boolean;
+    isAdmin?: boolean;  // ✅ admin flag
+    isBanned?: boolean; // ✅ banned flag
+
     address?: string;
     lastDonationDate?: Date | null;
     lastDonationPlace?: string;

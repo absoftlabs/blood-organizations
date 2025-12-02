@@ -31,13 +31,25 @@ export async function POST(req: Request) {
             );
         }
 
-        // ⬇ এখানে Approval চেক
+        // Approval check
         if (!user.isApproved) {
             return NextResponse.json(
                 {
                     success: false,
                     message:
                         "আপনার রেজিস্ট্রেশন এখনো অনুমোদিত নয়। অনুগ্রহ করে অনুমোদনের জন্য অপেক্ষা করুন।",
+                },
+                { status: 403 }
+            );
+        }
+
+        // Banned check
+        if (user.isBanned) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    message:
+                        "আপনার একাউন্টটি নিষ্ক্রিয় / ব্যান করা হয়েছে। বিস্তারিত জানতে প্রশাসনের সাথে যোগাযোগ করুন।",
                 },
                 { status: 403 }
             );
@@ -51,6 +63,8 @@ export async function POST(req: Request) {
             );
         }
 
+        const role = user.isAdmin ? "admin" : "user";
+
         const response = NextResponse.json(
             {
                 success: true,
@@ -61,12 +75,21 @@ export async function POST(req: Request) {
                     email: user.email,
                     mobile: user.mobile,
                     bloodGroup: user.bloodGroup,
+                    role,
                 },
             },
             { status: 200 }
         );
 
+        // user id cookie
         response.cookies.set("auth_token", user._id?.toString() ?? "", {
+            httpOnly: true,
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7,
+        });
+
+        // role cookie
+        response.cookies.set("auth_role", role, {
             httpOnly: true,
             path: "/",
             maxAge: 60 * 60 * 24 * 7,

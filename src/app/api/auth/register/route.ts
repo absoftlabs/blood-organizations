@@ -74,6 +74,9 @@ export async function POST(req: Request) {
             bloodGroup,
             passwordHash,
             isApproved: false,
+            isAdmin: false,
+            isBanned: false,
+
             totalDonations: 0,
             address: "",
             lastDonationDate: null,

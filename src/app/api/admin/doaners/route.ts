@@ -17,13 +17,16 @@ export async function GET() {
         const donors = docs.map((d) => ({
             id: d._id?.toString() ?? "",
             name: d.name,
-            email: d.email,
+            email: d.email,                // ⬅ এটা অবশ্যই থাকবে
             mobile: d.mobile,
             bloodGroup: d.bloodGroup,
             isApproved: d.isApproved,
+            isBanned: d.isBanned,
             totalDonations: d.totalDonations ?? 0,
             createdAt: d.createdAt.toISOString(),
         }));
+
+
 
         return NextResponse.json(
             { success: true, donors },

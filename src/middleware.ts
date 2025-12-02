@@ -1,4 +1,3 @@
-// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -6,23 +5,38 @@ export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     const authToken = request.cookies.get("auth_token")?.value;
-    const isLoggedIn = Boolean(authToken);
+    const authRole = request.cookies.get("auth_role")?.value;
 
-    // 🔒 হোম পেজ প্রোটেক্টেড: লগইন না থাকলে / থেকে /login এ পাঠাবে
+    const isLoggedIn = Boolean(authToken);
+    const isAdmin = authRole === "admin";
+
+    // 🔒 হোম পেজ প্রোটেক্টেড: লগইন না থাকলে / → /login
     if (!isLoggedIn && pathname === "/") {
         return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // ✅ যদি already লগইন করা থাকে:
-    // /login বা /register এ গেলে → হোম পেজে পাঠাবে
-    if (isLoggedIn && (pathname === "/login" || pathname === "/register")) {
+    // 🔒 admin routes প্রোটেক্ট
+    if (pathname.startsWith("/admin")) {
+        if (!isLoggedIn) {
+            return NextResponse.redirect(new URL("/login", request.url));
+        }
+
+        if (!isAdmin) {
+            return NextResponse.redirect(new URL("/", request.url));
+        }
+    }
+
+    // ✅ লগইন থাকা অবস্থায় login/register এ ঢুকতে না দেয়া
+    if (
+        isLoggedIn &&
+        (pathname === "/login" || pathname === "/register")
+    ) {
         return NextResponse.redirect(new URL("/", request.url));
     }
 
-    // বাকি সব রুট normal কাজ করবে
     return NextResponse.next();
 }
 
 export const config = {
-    matcher: ["/", "/login", "/register"],
+    matcher: ["/", "/login", "/register", "/admin/:path*"],
 };

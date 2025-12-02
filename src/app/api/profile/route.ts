@@ -53,7 +53,7 @@ export async function GET() {
                     name: user.name,
                     email: user.email,
                     mobile: user.mobile,
-                    bloodGroup: user.bloodGroup,
+                    bloodGroup: user.bloodGroup, // ⬅️ ব্লাড গ্রুপ
                     address: user.address ?? "",
                     lastDonationDate: user.lastDonationDate
                         ? user.lastDonationDate.toISOString().slice(0, 10)
@@ -61,10 +61,14 @@ export async function GET() {
                     lastDonationPlace: user.lastDonationPlace ?? "",
                     totalDonations: user.totalDonations ?? 0,
                     profileImage: user.profileImage ?? "",
+                    isAdmin: user.isAdmin ?? false, // ⬅️ এডমিন কিনা
                 },
             },
             { status: 200 }
         );
+
+
+
     } catch (error) {
         console.error("GET /api/profile error:", error);
         return NextResponse.json(
