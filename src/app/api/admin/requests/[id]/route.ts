@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
 import { BloodRequest, BloodRequestStatus } from "@/types/admin";
@@ -10,12 +10,14 @@ interface UpdateRequestBody {
 }
 
 export async function PATCH(
-    req: Request,
-    { params }: { params: { id: string } }
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = params;
-        const body: UpdateRequestBody = await req.json();
+        // 🔹 নতুন Next.js টাইপ অনুযায়ী params এখন Promise
+        const { id } = await context.params;
+
+        const body = (await request.json()) as UpdateRequestBody;
 
         if (!body.status) {
             return NextResponse.json(
