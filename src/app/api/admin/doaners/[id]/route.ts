@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
+// যদি BloodRequest টাইপ থাকে, তাহলে রাখুন, না থাকলে এই লাইন কমেন্ট করে দিন
 import { BloodRequest, BloodRequestStatus } from "@/types/admin";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function PATCH(
     context: { params: Promise<{ id: string }> }
 ) {
     try {
-        // নতুন Next.js টাইপ অনুযায়ী params একটা Promise
+        // নতুন Next.js টাইপ অনুযায়ী params এখন Promise
         const { id } = await context.params;
 
         const body = (await request.json()) as UpdateRequestBody;
