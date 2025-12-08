@@ -242,6 +242,11 @@ function Header() {
                                         <span className="badge">New</span>
                                     </Link>
                                 </li>
+                                <li>
+                                    <Link href={"/request-blood"} className="justify-between">
+                                        ব্লাড রিকোয়েস্ট করুন
+                                    </Link>
+                                </li>
 
                                 {isAdmin && (
                                     <li>

@@ -1,38 +1,50 @@
+// src/app/api/admin/requests/route.ts
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequest } from "@/types/admin";
+import { BloodRequest, AdminBloodRequest } from "@/types/admin";
 
 export const runtime = "nodejs";
 
 export async function GET() {
     try {
         const db = await getDb();
-        const requestsCol = db.collection<BloodRequest>("blood_requests");
+        const col = db.collection<BloodRequest>("blood_requests");
 
-        const docs = await requestsCol
-            .find({})
-            .sort({ createdAt: -1 })
-            .toArray();
+        const docs = await col.find({}).sort({ createdAt: -1 }).toArray();
 
-        const requests = docs.map((r) => ({
-            id: r._id?.toString() ?? "",
-            patientName: r.patientName,
+        const requests: AdminBloodRequest[] = docs.map((r) => ({
+            id: r._id!.toString(),
             bloodGroup: r.bloodGroup,
+
+            patientName: r.patientName,
+            medicalReason: r.medicalReason ?? undefined,
+
+            donationDateTime: r.donationDateTime
+                ? r.donationDateTime.toISOString()
+                : undefined,
+            hospitalAddress: r.hospitalAddress ?? undefined,
+
+            primaryPhone: r.primaryPhone,
+            requesterPhone: r.requesterPhone,
+
             units: r.units,
-            location: r.location,
-            contactNumber: r.contactNumber,
             status: r.status,
+
             createdAt: r.createdAt.toISOString(),
+            updatedAt: r.updatedAt ? r.updatedAt.toISOString() : undefined,
         }));
+
+        // ডিবাগের জন্য একবার কনসোলে দেখে নিন
+        console.log("ADMIN REQUESTS:", requests);
 
         return NextResponse.json(
             { success: true, requests },
             { status: 200 }
         );
-    } catch (error) {
-        console.error("GET /api/admin/requests error:", error);
+    } catch (err) {
+        console.error("GET /api/admin/requests error:", err);
         return NextResponse.json(
-            { success: false, message: "সার্ভার সমস্যা, পরে চেষ্টা করুন।" },
+            { success: false, message: "রিকুয়েস্ট লোড করতে সমস্যা হয়েছে।" },
             { status: 500 }
         );
     }

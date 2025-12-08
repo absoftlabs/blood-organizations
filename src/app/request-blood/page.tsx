@@ -1,11 +1,10 @@
-
-import AdminRequestsPage from '@/components/RequestBlood/AdminRequestsPage'
+import RequestBloodPage from '@/components/RequestBlood/AdminRequestsPage'
 import React from 'react'
 
 function page() {
     return (
         <div>
-            <AdminRequestsPage/>
+            <RequestBloodPage/>
         </div>
     )
 }
