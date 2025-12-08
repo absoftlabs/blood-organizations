@@ -5,11 +5,10 @@ import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/mongodb";
 import { Doaner } from "@/types/user";
 
-// NEXT 14+ : cookies() must be awaited
+// Cookie → User ID
 async function getUserIdFromCookie(): Promise<ObjectId | null> {
-    const cookieStore = await cookies();
-
-    const token = cookieStore.get("auth_token")?.value;
+    const store = await cookies();
+    const token = store.get("auth_token")?.value;
     if (!token) return null;
 
     try {
@@ -20,6 +19,10 @@ async function getUserIdFromCookie(): Promise<ObjectId | null> {
 }
 
 export const runtime = "nodejs";
+
+// Allowed genders
+const GENDERS = ["male", "female", "other"] as const;
+type GenderType = (typeof GENDERS)[number];
 
 // =======================
 //       GET PROFILE
@@ -38,7 +41,6 @@ export async function GET() {
         const doaners = db.collection<Doaner>("doaners");
 
         const user = await doaners.findOne({ _id: userId });
-
         if (!user) {
             return NextResponse.json(
                 { success: false, message: "ইউজার পাওয়া যায়নি।" },
@@ -53,7 +55,7 @@ export async function GET() {
                     name: user.name,
                     email: user.email,
                     mobile: user.mobile,
-                    bloodGroup: user.bloodGroup, // ⬅️ ব্লাড গ্রুপ
+                    bloodGroup: user.bloodGroup,
                     address: user.address ?? "",
                     lastDonationDate: user.lastDonationDate
                         ? user.lastDonationDate.toISOString().slice(0, 10)
@@ -61,14 +63,17 @@ export async function GET() {
                     lastDonationPlace: user.lastDonationPlace ?? "",
                     totalDonations: user.totalDonations ?? 0,
                     profileImage: user.profileImage ?? "",
-                    isAdmin: user.isAdmin ?? false, // ⬅️ এডমিন কিনা
+                    isAdmin: user.isAdmin ?? false,
+
+                    // New fields (type-safe)
+                    gender: user.gender ?? "",
+                    birthDate: user.birthDate
+                        ? user.birthDate.toISOString().slice(0, 10)
+                        : "",
                 },
             },
             { status: 200 }
         );
-
-
-
     } catch (error) {
         console.error("GET /api/profile error:", error);
         return NextResponse.json(
@@ -79,7 +84,7 @@ export async function GET() {
 }
 
 // =======================
-//       UPDATE PROFILE
+//     UPDATE PROFILE
 // =======================
 export async function PUT(req: Request) {
     try {
@@ -104,6 +109,10 @@ export async function PUT(req: Request) {
             profileImage,
             currentPassword,
             newPassword,
+
+            // New fields
+            gender,
+            birthDate
         } = body;
 
         if (!name || !mobile || !bloodGroup) {
@@ -124,6 +133,7 @@ export async function PUT(req: Request) {
             );
         }
 
+        // Type-safe update object
         const updateFields: Partial<Doaner> = {
             name,
             mobile,
@@ -134,26 +144,37 @@ export async function PUT(req: Request) {
             updatedAt: new Date(),
         };
 
-        // Last donation date
-        if (lastDonationDate && lastDonationDate.trim() !== "") {
-            updateFields.lastDonationDate = new Date(lastDonationDate);
+        // Last Donation Date
+        if (typeof lastDonationDate === "string" && lastDonationDate.trim()) {
+            const d = new Date(lastDonationDate);
+            if (!isNaN(d.getTime())) updateFields.lastDonationDate = d;
         } else {
             updateFields.lastDonationDate = null;
         }
 
-        // Profile image
-        if (profileImage && profileImage.trim() !== "") {
+        // Profile Image
+        if (typeof profileImage === "string" && profileImage.trim()) {
             updateFields.profileImage = profileImage;
+        }
+
+        // Gender (type-safe)
+        if (typeof gender === "string" && GENDERS.includes(gender as GenderType)) {
+            updateFields.gender = gender as GenderType;
+        }
+
+        // Birth Date (type-safe)
+        if (typeof birthDate === "string" && birthDate.trim()) {
+            const d = new Date(birthDate);
+            if (!isNaN(d.getTime())) {
+                updateFields.birthDate = d;
+            }
         }
 
         // Password change
         if (newPassword && newPassword.trim() !== "") {
-            if (!currentPassword || currentPassword.trim() === "") {
+            if (!currentPassword) {
                 return NextResponse.json(
-                    {
-                        success: false,
-                        message: "পাসওয়ার্ড পরিবর্তনের জন্য বর্তমান পাসওয়ার্ড দিন।",
-                    },
+                    { success: false, message: "বর্তমান পাসওয়ার্ড দিন।" },
                     { status: 400 }
                 );
             }
@@ -168,10 +189,7 @@ export async function PUT(req: Request) {
 
             if (newPassword.length < 6) {
                 return NextResponse.json(
-                    {
-                        success: false,
-                        message: "নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।",
-                    },
+                    { success: false, message: "নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।" },
                     { status: 400 }
                 );
             }
@@ -180,7 +198,6 @@ export async function PUT(req: Request) {
             updateFields.passwordHash = await bcrypt.hash(newPassword, salt);
         }
 
-        // Save update
         await doaners.updateOne({ _id: userId }, { $set: updateFields });
 
         return NextResponse.json(

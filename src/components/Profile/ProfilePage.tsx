@@ -3,6 +3,8 @@
 import { useEffect, useState, ChangeEvent, FormEvent } from "react";
 import toast from "react-hot-toast";
 
+type Gender = "male" | "female" | "other" | "";
+
 interface ProfileData {
     name: string;
     email: string;
@@ -13,6 +15,8 @@ interface ProfileData {
     lastDonationPlace: string;
     totalDonations: number;
     profileImage: string; // base64 বা ""
+    gender: Gender;
+    birthDate: string; // YYYY-MM-DD
 }
 
 export default function ProfilePage() {
@@ -28,6 +32,8 @@ export default function ProfilePage() {
         lastDonationPlace: "",
         totalDonations: 0,
         profileImage: "",
+        gender: "",
+        birthDate: "",
     });
 
     const [currentPassword, setCurrentPassword] = useState("");
@@ -47,9 +53,19 @@ export default function ProfilePage() {
                 }
 
                 const data = json.data as ProfileData;
+
                 setProfile({
-                    ...data,
+                    name: data.name,
+                    email: data.email,
+                    mobile: data.mobile ?? "",
+                    bloodGroup: data.bloodGroup ?? "",
+                    address: data.address ?? "",
+                    lastDonationDate: data.lastDonationDate ?? "",
+                    lastDonationPlace: data.lastDonationPlace ?? "",
                     totalDonations: data.totalDonations ?? 0,
+                    profileImage: data.profileImage ?? "",
+                    gender: data.gender ?? "",
+                    birthDate: data.birthDate ?? "",
                 });
             } catch (error) {
                 console.error(error);
@@ -72,6 +88,14 @@ export default function ProfilePage() {
             setProfile((prev) => ({
                 ...prev,
                 totalDonations: Number.isNaN(num) ? 0 : num,
+            }));
+            return;
+        }
+
+        if (name === "gender") {
+            setProfile((prev) => ({
+                ...prev,
+                gender: value as Gender,
             }));
             return;
         }
@@ -124,6 +148,9 @@ export default function ProfilePage() {
                 lastDonationPlace: profile.lastDonationPlace,
                 totalDonations: profile.totalDonations,
                 profileImage: profile.profileImage,
+                // নতুন ফিল্ড
+                gender: profile.gender,
+                birthDate: profile.birthDate,
                 currentPassword: currentPassword || undefined,
                 newPassword: newPassword || undefined,
             };
@@ -173,7 +200,9 @@ export default function ProfilePage() {
     return (
         <main className="min-h-screen bg-base-200 py-8">
             <div className="max-w-5xl mx-auto px-4">
-                <h1 className="text-2xl font-bold mb-6 text-center md:text-start">প্রোফাইল সেটিংস</h1>
+                <h1 className="text-2xl font-bold mb-6 text-center md:text-start">
+                    প্রোফাইল সেটিংস
+                </h1>
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     {/* Left: Avatar & summary */}
@@ -293,6 +322,39 @@ export default function ProfilePage() {
                                         </div>
                                     </div>
 
+                                    {/* Gender + Birth Date */}
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="form-control">
+                                            <label className="label">
+                                                <span className="label-text">লিঙ্গ (Gender)</span>
+                                            </label>
+                                            <select
+                                                name="gender"
+                                                className="select select-bordered w-full"
+                                                value={profile.gender}
+                                                onChange={handleInputChange}
+                                            >
+                                                <option value="">সিলেক্ট করুন</option>
+                                                <option value="male">পুরুষ</option>
+                                                <option value="female">মহিলা</option>
+                                                <option value="other">অন্যান্য</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="form-control">
+                                            <label className="label">
+                                                <span className="label-text">জন্ম তারিখ</span>
+                                            </label>
+                                            <input
+                                                name="birthDate"
+                                                type="date"
+                                                className="input input-bordered w-full"
+                                                value={profile.birthDate}
+                                                onChange={handleInputChange}
+                                            />
+                                        </div>
+                                    </div>
+
                                     <div className="form-control">
                                         <label className="label">
                                             <span className="label-text">ঠিকানা</span>
@@ -309,7 +371,9 @@ export default function ProfilePage() {
                                     <div className="grid gap-4 md:grid-cols-3">
                                         <div className="form-control">
                                             <label className="label">
-                                                <span className="label-text">সর্বশেষ রক্তদানের তারিখ</span>
+                                                <span className="label-text">
+                                                    সর্বশেষ রক্তদানের তারিখ
+                                                </span>
                                             </label>
                                             <input
                                                 name="lastDonationDate"
@@ -338,7 +402,9 @@ export default function ProfilePage() {
 
                                     <div className="form-control max-w-xs">
                                         <label className="label">
-                                            <span className="label-text">মোট কতবার রক্তদান করেছেন</span>
+                                            <span className="label-text">
+                                                মোট কতবার রক্তদান করেছেন
+                                            </span>
                                         </label>
                                         <input
                                             name="totalDonations"
@@ -385,7 +451,9 @@ export default function ProfilePage() {
                                                 type="password"
                                                 className="input input-bordered w-full"
                                                 value={confirmNewPassword}
-                                                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                                onChange={(e) =>
+                                                    setConfirmNewPassword(e.target.value)
+                                                }
                                             />
                                         </div>
                                     </div>

@@ -20,4 +20,6 @@ export interface Doaner {
 
     createdAt: Date;
     updatedAt: Date;
+    gender?: "male" | "female" | "other";
+    birthDate?: Date | null;
 }
