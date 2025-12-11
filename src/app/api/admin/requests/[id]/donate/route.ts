@@ -1,37 +1,24 @@
-// src/app/api/admin/requests/[id]/donate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequest } from "@/types/admin";
-import { Doaner } from "@/types/user";
-
-export const runtime = "nodejs";
-
-interface DonateBody {
-    doanerId: string;
-}
 
 export async function POST(
     req: NextRequest,
-    context: { params: Promise<{ id: string }> }
+    context: { params: { id: string } }   // <-- FIXED: Promise নয়, normal object
 ) {
     try {
-        // ✅ params থেকে id নিতে এখানে ও await করতে হবে
-        const { id: rawReqId } = await context.params;
-        const requestId = (rawReqId ?? "").trim();
+        const requestId = context.params.id;
 
-        const body = (await req.json()) as DonateBody;
-        const rawDonorId = body.doanerId ?? "";
-        const donorId = rawDonorId.trim();
-
-        if (!ObjectId.isValid(requestId)) {
+        if (!requestId || !ObjectId.isValid(requestId)) {
             return NextResponse.json(
                 { success: false, message: "সঠিক রিকুয়েস্ট আইডি প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!ObjectId.isValid(donorId)) {
+        const { doanerId } = await req.json();
+
+        if (!doanerId || !ObjectId.isValid(doanerId)) {
             return NextResponse.json(
                 { success: false, message: "সঠিক ডোনার আইডি প্রয়োজন।" },
                 { status: 400 }
@@ -39,71 +26,59 @@ export async function POST(
         }
 
         const db = await getDb();
-        const requestsCol = db.collection<BloodRequest>("blood_requests");
-        const doanersCol = db.collection<Doaner>("doaners");
+        const requestsCol = db.collection("blood_requests");
+        const donorsCol = db.collection("doaners");
 
-        const request = await requestsCol.findOne({
-            _id: new ObjectId(requestId),
-        });
-        if (!request) {
+        const requestDoc = await requestsCol.findOne({ _id: new ObjectId(requestId) });
+
+        if (!requestDoc) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্ট পাওয়া যায়নি।" },
                 { status: 404 }
             );
         }
 
-        const donor = await doanersCol.findOne({
-            _id: new ObjectId(donorId),
-        });
-        if (!donor) {
+        const donorDoc = await donorsCol.findOne({ _id: new ObjectId(doanerId) });
+
+        if (!donorDoc) {
             return NextResponse.json(
                 { success: false, message: "ডোনার পাওয়া যায়নি।" },
                 { status: 404 }
             );
         }
 
-        const newTotalDonations = (donor.totalDonations ?? 0) + 1;
+        // Update donation record
+        const now = new Date();
 
-        let donationDate: Date;
-        if (request.donationDateTime instanceof Date) {
-            donationDate = request.donationDateTime;
-        } else if (typeof request.donationDateTime === "string") {
-            const d = new Date(request.donationDateTime);
-            donationDate = Number.isNaN(d.getTime()) ? new Date() : d;
-        } else {
-            donationDate = new Date();
-        }
-
-        // ডোনার আপডেট
-        await doanersCol.updateOne(
-            { _id: donor._id as ObjectId },
+        await donorsCol.updateOne(
+            { _id: donorDoc._id },
             {
                 $set: {
-                    lastDonationDate: donationDate,
-                    lastDonationPlace: request.hospitalAddress,
-                    totalDonations: newTotalDonations,
-                    updatedAt: new Date(),
+                    lastDonationDate: now,
+                    lastDonationPlace: requestDoc.hospitalAddress ?? "",
+                },
+                $inc: {
+                    totalDonations: 1,
                 },
             }
         );
 
-        // রিকুয়েস্ট স্ট্যাটাস completed
         await requestsCol.updateOne(
-            { _id: request._id as ObjectId },
+            { _id: new ObjectId(requestId) },
             {
                 $set: {
                     status: "completed",
-                    updatedAt: new Date(),
+                    updatedAt: now,
                 },
             }
         );
 
-        return NextResponse.json(
-            { success: true, message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।" },
-            { status: 200 }
-        );
+        return NextResponse.json({
+            success: true,
+            message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।",
+        });
     } catch (error) {
-        console.error("POST /api/admin/requests/[id]/donate error:", error);
+        console.error("Donate API Error:", error);
         return NextResponse.json(
             { success: false, message: "সার্ভার সমস্যা, পরে চেষ্টা করুন।" },
             { status: 500 }
