@@ -14,12 +14,25 @@ interface HeaderProfileData {
     bloodGroup?: string;
 }
 
+type BloodRequestStatus = "pending" | "approved" | "rejected" | "completed";
+
 interface HeaderNotification {
     id: string;
     title: string;
     message: string;
     createdAt: string;
     isRead: boolean;
+
+    // 🔽 ব্লাড রিকুয়েস্টের জন্য অতিরিক্ত ফিল্ডগুলো
+    bloodGroup?: string;
+    units?: number;
+    hemoglobin?: number | null;
+    donationDateTime?: string;
+    hospitalAddress?: string;
+    requesterName?: string;
+    requesterPhone?: string;
+    medicalReason?: string | null;
+    status?: BloodRequestStatus;
 }
 
 function Header() {
@@ -63,23 +76,9 @@ function Header() {
                 setIsLoggedIn(true);
                 setIsAdmin(Boolean(data?.isAdmin));
 
-                if (data?.profileImage) {
-                    setProfileImage(data.profileImage);
-                } else {
-                    setProfileImage("");
-                }
-
-                if (data?.name) {
-                    setUserName(data.name);
-                } else {
-                    setUserName("");
-                }
-
-                if (data?.bloodGroup) {
-                    setBloodGroup(data.bloodGroup);
-                } else {
-                    setBloodGroup("");
-                }
+                setProfileImage(data?.profileImage ?? "");
+                setUserName(data?.name ?? "");
+                setBloodGroup(data?.bloodGroup ?? "");
             } catch (error) {
                 console.error(error);
                 setIsLoggedIn(false);
@@ -100,7 +99,6 @@ function Header() {
                 });
 
                 if (!res.ok) {
-                    // 401 হলে বা অন্য error হলে চুপচাপ ignore
                     return;
                 }
 
@@ -159,6 +157,56 @@ function Header() {
         profileImage && profileImage.trim() !== "" ? profileImage : "";
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+    // 🔄 নোটিফিকেশন কপি ফাংশন
+    const handleCopyNotification = async (n: HeaderNotification) => {
+        // তারিখ/সময় ফরম্যাট
+        let donationDateTimeText = "";
+        if (n.donationDateTime) {
+            const d = new Date(n.donationDateTime);
+            if (!Number.isNaN(d.getTime())) {
+                donationDateTimeText = d.toLocaleString("bn-BD", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                });
+            }
+        }
+
+        const text = [
+            "‎একটি মানবিক আবেদন",
+            `‎♦️রোগির সমস্যাঃ ${n.medicalReason ?? "-"}`,
+            `‎🩸রক্তের গ্রুপঃ ${n.bloodGroup ?? "-"}`,
+            `‎🖲️রক্তের পরিমাণঃ ${n.units ?? "-"} ব্যাগ`,
+            `‎⭕হিমোগ্লোবিনঃ ${typeof n.hemoglobin === "number" ? n.hemoglobin : "-"
+            }`,
+            `‎📅রক্তদানের তারিখ ও সময়: ${donationDateTimeText || "-"
+            }`,
+            `‎🏥রক্তদানের স্থানঃ ${n.hospitalAddress ?? "-"}`,
+            `🤝রেফারেন্সঃ ${n.requesterName ?? "-"}`,
+            `‎☎️যোগাযোগ: ${n.requesterPhone ?? "-"}`,
+        ].join("\n");
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                toast.success("রিকুয়েস্ট ডিটেইল ক্লিপবোর্ডে কপি হয়েছে।");
+            } else {
+                // fallback (ব্রাউজার সাপোর্ট না করলে)
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.style.position = "fixed";
+                textarea.style.left = "-9999px";
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textarea);
+                toast.success("রিকুয়েস্ট ডিটেইল ক্লিপবোর্ডে কপি হয়েছে।");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("কপি করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+        }
+    };
 
     return (
         <div className="navbar bg-base-100 shadow-sm">
@@ -286,7 +334,7 @@ function Header() {
                                         কোনো নোটিফিকেশন নেই।
                                     </p>
                                 ) : (
-                                    <ul className="space-y-2 text-xs">
+                                    <ul className="space-y-3 text-xs">
                                         {notifications.map((n) => (
                                             <li
                                                 key={n.id}
@@ -300,6 +348,15 @@ function Header() {
                                                         timeStyle: "short",
                                                     })}
                                                 </p>
+
+                                                {/* 🔘 কপি বাটন */}
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-xs btn-outline btn-primary mt-2"
+                                                    onClick={() => handleCopyNotification(n)}
+                                                >
+                                                    কপি করুন
+                                                </button>
                                             </li>
                                         ))}
                                     </ul>
@@ -312,7 +369,6 @@ function Header() {
                 {loadingUser ? (
                     <div className="w-24 h-8" />
                 ) : !isLoggedIn ? (
-                    // 🔓 লগইন না থাকলে শুধু “লগইন করুন” বাটন
                     <button
                         type="button"
                         className="btn btn-primary btn-sm"
@@ -321,7 +377,6 @@ function Header() {
                         লগইন করুন
                     </button>
                 ) : (
-                    // 🔐 লগইন থাকলে: নাম + ব্লাড গ্রুপ + অ্যাভাটার
                     <div className="flex items-center gap-3">
                         <div className="hidden sm:flex flex-col items-end text-right">
                             <span className="text-sm font-semibold">

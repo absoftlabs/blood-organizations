@@ -1,10 +1,10 @@
-import RequestBloodPage from '@/components/RequestBlood/AdminRequestsPage'
+import BloodRequestForm from '@/components/BloodRequestForm/BloodRequestForm'
 import React from 'react'
 
 function page() {
     return (
         <div>
-            <RequestBloodPage/>
+            <BloodRequestForm/>
         </div>
     )
 }

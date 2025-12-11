@@ -1,67 +1,86 @@
-// src/app/api/notifications/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import { Notification } from "@/types/admin";
+import { BloodRequest, BloodRequestStatus } from "@/types/admin";
 
 export const runtime = "nodejs";
 
-async function getUserIdFromCookie(): Promise<ObjectId | null> {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) return null;
-
-    try {
-        return new ObjectId(token);
-    } catch {
-        return null;
-    }
-}
-
-interface NotificationDto {
+interface HeaderNotification {
     id: string;
     title: string;
     message: string;
     createdAt: string;
     isRead: boolean;
+
+    bloodGroup?: string;
+    units?: number;
+    hemoglobin?: number | null;
+    donationDateTime?: string;
+    hospitalAddress?: string;
+    requesterName?: string;
+    requesterPhone?: string;
+    medicalReason?: string | null;
+    status?: BloodRequestStatus;
 }
 
 export async function GET() {
     try {
-        const userId = await getUserIdFromCookie();
-        if (!userId) {
-            return NextResponse.json(
-                { success: false, message: "অননুমোদিত অনুরোধ।" },
-                { status: 401 }
-            );
-        }
-
         const db = await getDb();
-        const notificationsCol = db.collection<Notification>("notifications");
+        const requestsCol = db.collection<BloodRequest>("blood_requests");
 
-        const docs = await notificationsCol
-            .find({ userId })
+        // আপাতত শেষ ৫০টা approved/pending রিকুয়েস্ট নোটিফিকেশন হিসেবে ধরছি
+        const docs = await requestsCol
+            .find({
+                status: { $in: ["approved", "pending"] as BloodRequestStatus[] },
+            })
             .sort({ createdAt: -1 })
-            .limit(20)
+            .limit(50)
             .toArray();
 
-        const data: NotificationDto[] = docs.map((n) => ({
-            id: (n._id as ObjectId).toHexString(),
-            title: n.title,
-            message: n.message,
-            createdAt: n.createdAt.toISOString(),
-            isRead: n.isRead,
-        }));
+        const notifications: HeaderNotification[] = docs.map((req) => {
+            const created =
+                req.updatedAt instanceof Date
+                    ? req.updatedAt
+                    : req.createdAt instanceof Date
+                        ? req.createdAt
+                        : new Date(req.createdAt);
+
+            const donationDate =
+                req.donationDateTime instanceof Date
+                    ? req.donationDateTime
+                    : new Date(req.donationDateTime);
+
+            return {
+                id: req._id.toHexString(),
+                title: "নতুন ব্লাড রিকুয়েস্ট",
+                message: `${req.patientName} এর জন্য ${req.bloodGroup} রক্ত প্রয়োজন।`,
+                createdAt: created.toISOString(),
+                isRead: false, // এখন আপাতত সবকে unread ধরি
+
+                bloodGroup: req.bloodGroup,
+                units: req.units,
+                hemoglobin: typeof req.hemoglobin === "number" ? req.hemoglobin : null,
+                donationDateTime: !Number.isNaN(donationDate.getTime())
+                    ? donationDate.toISOString()
+                    : created.toISOString(),
+                hospitalAddress: req.hospitalAddress,
+                requesterName: req.requesterName,
+                requesterPhone: req.requesterPhone,
+                medicalReason: req.medicalReason ?? null,
+                status: req.status,
+            };
+        });
 
         return NextResponse.json(
-            { success: true, data },
+            {
+                success: true,
+                data: notifications,
+            },
             { status: 200 }
         );
     } catch (error) {
         console.error("GET /api/notifications error:", error);
         return NextResponse.json(
-            { success: false, message: "সার্ভার সমস্যা, পরে চেষ্টা করুন।" },
+            { success: false, message: "নোটিফিকেশন লোড করতে সমস্যা হয়েছে।" },
             { status: 500 }
         );
     }

@@ -1,5 +1,5 @@
 
-import AdminRequestsPage from '@/components/RequestBlood/AdminRequestsPage'
+import AdminRequestsPage from '@/components/Admin/RequestBlood/AdminRequestsPage'
 import React from 'react'
 
 function page() {
