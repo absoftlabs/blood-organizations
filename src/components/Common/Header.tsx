@@ -14,9 +14,18 @@ interface HeaderProfileData {
     bloodGroup?: string;
 }
 
+interface HeaderNotification {
+    id: string;
+    title: string;
+    message: string;
+    createdAt: string;
+    isRead: boolean;
+}
+
 function Header() {
     const router = useRouter();
-    const pathname = usePathname(); // 🔹 রুট পরিবর্তন detect করার জন্য
+    const pathname = usePathname();
+
     const [loggingOut, setLoggingOut] = useState(false);
     const [profileImage, setProfileImage] = useState<string>("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -24,6 +33,10 @@ function Header() {
     const [loadingUser, setLoadingUser] = useState(true);
     const [userName, setUserName] = useState<string>("");
     const [bloodGroup, setBloodGroup] = useState<string>("");
+
+    // 🔔 Notifications
+    const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
+    const [loadingNotifications, setLoadingNotifications] = useState(false);
 
     useEffect(() => {
         const fetchProfileAvatar = async () => {
@@ -79,8 +92,34 @@ function Header() {
             }
         };
 
-        // 🔥 pathname বদলালেই (যেমন /login → /) আবার profile ফেচ করবে
-        fetchProfileAvatar();
+        const fetchNotifications = async () => {
+            try {
+                setLoadingNotifications(true);
+                const res = await fetch("/api/notifications", {
+                    cache: "no-store",
+                });
+
+                if (!res.ok) {
+                    // 401 হলে বা অন্য error হলে চুপচাপ ignore
+                    return;
+                }
+
+                const json = await res.json();
+                if (!json.success) return;
+
+                const data = json.data as HeaderNotification[];
+                setNotifications(Array.isArray(data) ? data : []);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoadingNotifications(false);
+            }
+        };
+
+        // আগে প্রোফাইল, পরে নোটিফিকেশন
+        fetchProfileAvatar().then(() => {
+            fetchNotifications().catch(() => undefined);
+        });
     }, [pathname]);
 
     const handleLogout = async () => {
@@ -118,6 +157,8 @@ function Header() {
 
     const avatarSrc =
         profileImage && profileImage.trim() !== "" ? profileImage : "";
+
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
 
     return (
         <div className="navbar bg-base-100 shadow-sm">
@@ -191,7 +232,83 @@ function Header() {
                 </ul>
             </div>
 
-            <div className="navbar-end">
+            <div className="navbar-end gap-2">
+                {/* 🔔 Notification bell (শুধু লগইন থাকলে) */}
+                {!loadingUser && isLoggedIn && (
+                    <div className="dropdown dropdown-end">
+                        <button
+                            type="button"
+                            tabIndex={0}
+                            className="btn btn-ghost btn-circle"
+                        >
+                            <div className="indicator">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                                    />
+                                </svg>
+                                {unreadCount > 0 && (
+                                    <span className="badge badge-error badge-xs indicator-item">
+                                        {unreadCount}
+                                    </span>
+                                )}
+                            </div>
+                        </button>
+                        <div
+                            tabIndex={-1}
+                            className="mt-3 card card-compact dropdown-content w-80 bg-base-100 shadow z-20"
+                        >
+                            <div className="card-body max-h-80 overflow-y-auto">
+                                <h2 className="card-title text-sm">
+                                    নোটিফিকেশন
+                                    {unreadCount > 0 && (
+                                        <span className="badge badge-error badge-sm">
+                                            {unreadCount}
+                                        </span>
+                                    )}
+                                </h2>
+
+                                {loadingNotifications ? (
+                                    <div className="flex justify-center py-4">
+                                        <span className="loading loading-spinner" />
+                                    </div>
+                                ) : notifications.length === 0 ? (
+                                    <p className="text-xs text-base-content/70">
+                                        কোনো নোটিফিকেশন নেই।
+                                    </p>
+                                ) : (
+                                    <ul className="space-y-2 text-xs">
+                                        {notifications.map((n) => (
+                                            <li
+                                                key={n.id}
+                                                className="border-b last:border-0 pb-2 last:pb-0"
+                                            >
+                                                <p className="font-semibold">{n.title}</p>
+                                                <p className="text-base-content/80">{n.message}</p>
+                                                <p className="text-[10px] text-base-content/60 mt-1">
+                                                    {new Date(n.createdAt).toLocaleString("bn-BD", {
+                                                        dateStyle: "medium",
+                                                        timeStyle: "short",
+                                                    })}
+                                                </p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {loadingUser ? (
                     <div className="w-24 h-8" />
                 ) : !isLoggedIn ? (
