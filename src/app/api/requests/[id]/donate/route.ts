@@ -1,36 +1,42 @@
-// src/app/api/admin/requests/[id]/donate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequest } from "@/types/admin";
-import { Doaner } from "@/types/user";
+import { BloodRequestStatus } from "@/types/admin";
 
 export const runtime = "nodejs";
 
-interface DonateBody {
-    doanerId: string;
-}
-
 export async function POST(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = params;
-        const body = (await req.json()) as DonateBody;
+        const { id } = await context.params;
 
-        if (!id || !body.doanerId) {
+        if (!ObjectId.isValid(id)) {
             return NextResponse.json(
-                { success: false, message: "রিকুয়েস্ট আইডি ও ডোনার আইডি প্রয়োজন।" },
+                { success: false, message: "সঠিক রিকুয়েস্ট আইডি প্রয়োজন।" },
+                { status: 400 }
+            );
+        }
+
+        const body = await req.json();
+        const { doanerId } = body as { doanerId?: string };
+
+        if (!doanerId || !ObjectId.isValid(doanerId)) {
+            return NextResponse.json(
+                { success: false, message: "সঠিক ডোনার নির্বাচন করুন।" },
                 { status: 400 }
             );
         }
 
         const db = await getDb();
-        const requestsCol = db.collection<BloodRequest>("blood_requests");
-        const doanersCol = db.collection<Doaner>("doaners");
+        const requestsCol = db.collection("blood_requests");
+        const doanersCol = db.collection("doaners");
 
-        const request = await requestsCol.findOne({ _id: new ObjectId(id) });
+        const request = await requestsCol.findOne({
+            _id: new ObjectId(id),
+        });
+
         if (!request) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্ট পাওয়া যায়নি।" },
@@ -38,7 +44,10 @@ export async function POST(
             );
         }
 
-        const donor = await doanersCol.findOne({ _id: new ObjectId(body.doanerId) });
+        const donor = await doanersCol.findOne({
+            _id: new ObjectId(doanerId),
+        });
+
         if (!donor) {
             return NextResponse.json(
                 { success: false, message: "ডোনার পাওয়া যায়নি।" },
@@ -46,39 +55,39 @@ export async function POST(
             );
         }
 
-        const newTotalDonations = (donor.totalDonations ?? 0) + 1;
+        const now = new Date();
 
-        const donationDate =
-            request.donationDateTime instanceof Date
-                ? request.donationDateTime
-                : new Date(request.donationDateTime);
-
-        // ডোনার আপডেট
-        await doanersCol.updateOne(
-            { _id: donor._id as ObjectId },
+        // ✅ Update request
+        await requestsCol.updateOne(
+            { _id: new ObjectId(id) },
             {
                 $set: {
-                    lastDonationDate: donationDate,
-                    lastDonationPlace: request.hospitalAddress,
-                    totalDonations: newTotalDonations,
-                    updatedAt: new Date(),
+                    status: "completed" as BloodRequestStatus,
+                    updatedAt: now,
                 },
             }
         );
 
-        // রিকুয়েস্ট স্ট্যাটাস completed
-        await requestsCol.updateOne(
-            { _id: request._id as ObjectId },
+        // ✅ Update donor stats
+        await doanersCol.updateOne(
+            { _id: donor._id },
             {
                 $set: {
-                    status: "completed",
-                    updatedAt: new Date(),
+                    lastDonationDate: now,
+                    lastDonationPlace: request.hospitalAddress,
+                    updatedAt: now,
+                },
+                $inc: {
+                    totalDonations: 1,
                 },
             }
         );
 
         return NextResponse.json(
-            { success: true, message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।" },
+            {
+                success: true,
+                message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।",
+            },
             { status: 200 }
         );
     } catch (error) {
