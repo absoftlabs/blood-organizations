@@ -1,3 +1,4 @@
+// src/app/api/admin/requests/[id]/donate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
@@ -7,114 +8,97 @@ import { Doaner } from "@/types/user";
 export const runtime = "nodejs";
 
 interface DonateBody {
-    doanerId?: string;
+    doanerId: string;
 }
 
 export async function POST(
     req: NextRequest,
-    { params }: { params: Promise<{ id: string }> } // 🔴 এখানে এখন Promise
+    { params }: { params: { id: string } }
 ) {
     try {
-        const { id } = await params; // 🔴 Promise resolve করে id নিচ্ছি
+        const rawReqId = params.id;
+        const requestId = (rawReqId ?? "").trim();
 
-        if (!id || !ObjectId.isValid(id)) {
+        const body = (await req.json()) as DonateBody;
+        const rawDonorId = body.doanerId ?? "";
+        const donorId = rawDonorId.trim();
+
+        if (!ObjectId.isValid(requestId)) {
             return NextResponse.json(
                 { success: false, message: "সঠিক রিকুয়েস্ট আইডি প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        const body: DonateBody = await req.json();
-
-        if (!body.doanerId || !ObjectId.isValid(body.doanerId)) {
+        if (!ObjectId.isValid(donorId)) {
             return NextResponse.json(
                 { success: false, message: "সঠিক ডোনার আইডি প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        const requestId = new ObjectId(id);
-        const doanerId = new ObjectId(body.doanerId);
-
         const db = await getDb();
         const requestsCol = db.collection<BloodRequest>("blood_requests");
         const doanersCol = db.collection<Doaner>("doaners");
-        const donationsCol = db.collection("donations"); // চাইলে আলাদা collection
 
-        // 👉 রিকুয়েস্টটা নিন
-        const requestDoc = await requestsCol.findOne({ _id: requestId });
-        if (!requestDoc) {
+        const request = await requestsCol.findOne({
+            _id: new ObjectId(requestId),
+        });
+        if (!request) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্ট পাওয়া যায়নি।" },
                 { status: 404 }
             );
         }
 
-        // 👉 ডোনারটা নিন
-        const doanerDoc = await doanersCol.findOne({ _id: doanerId });
-        if (!doanerDoc) {
+        const donor = await doanersCol.findOne({
+            _id: new ObjectId(donorId),
+        });
+        if (!donor) {
             return NextResponse.json(
                 { success: false, message: "ডোনার পাওয়া যায়নি।" },
                 { status: 404 }
             );
         }
 
-        const now = new Date();
+        const newTotalDonations = (donor.totalDonations ?? 0) + 1;
 
-        // 1) ডোনারের প্রোফাইল আপডেট
-        const currentTotal = typeof doanerDoc.totalDonations === "number"
-            ? doanerDoc.totalDonations
-            : 0;
+        let donationDate: Date;
+        if (request.donationDateTime instanceof Date) {
+            donationDate = request.donationDateTime;
+        } else if (typeof request.donationDateTime === "string") {
+            const d = new Date(request.donationDateTime);
+            donationDate = Number.isNaN(d.getTime()) ? new Date() : d;
+        } else {
+            donationDate = new Date();
+        }
 
+        // ডোনার আপডেট
         await doanersCol.updateOne(
-            { _id: doanerId },
+            { _id: donor._id as ObjectId },
             {
                 $set: {
-                    lastDonationDate:
-                        requestDoc.donationDateTime instanceof Date
-                            ? requestDoc.donationDateTime
-                            : new Date(requestDoc.donationDateTime),
-                    lastDonationPlace: requestDoc.hospitalAddress ?? "",
-                    updatedAt: now,
-                },
-                $inc: {
-                    totalDonations: 1,
+                    lastDonationDate: donationDate,
+                    lastDonationPlace: request.hospitalAddress,
+                    totalDonations: newTotalDonations,
+                    updatedAt: new Date(),
                 },
             }
         );
 
-        // 2) চাইলে আলাদা ডোনেশন হিস্ট্রি কালেকশনে ইনসার্ট করতে পারেন
-        await donationsCol.insertOne({
-            donorId: doanerId,
-            donorName: doanerDoc.name,
-            bloodGroup: doanerDoc.bloodGroup,
-            units: requestDoc.units,
-            date:
-                requestDoc.donationDateTime instanceof Date
-                    ? requestDoc.donationDateTime
-                    : new Date(requestDoc.donationDateTime),
-            location: requestDoc.hospitalAddress ?? "",
-            notes: requestDoc.medicalReason ?? "",
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        // 3) রিকুয়েস্টকে completed মার্ক করা
+        // রিকুয়েস্ট স্ট্যাটাস completed
         await requestsCol.updateOne(
-            { _id: requestId },
+            { _id: request._id as ObjectId },
             {
                 $set: {
                     status: "completed",
-                    updatedAt: now,
+                    updatedAt: new Date(),
                 },
             }
         );
 
         return NextResponse.json(
-            {
-                success: true,
-                message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।",
-            },
+            { success: true, message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।" },
             { status: 200 }
         );
     } catch (error) {

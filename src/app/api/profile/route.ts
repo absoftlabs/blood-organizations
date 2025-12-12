@@ -5,7 +5,9 @@ import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/mongodb";
 import { Doaner } from "@/types/user";
 
+// =======================
 // Cookie → User ID
+// =======================
 async function getUserIdFromCookie(): Promise<ObjectId | null> {
     const store = await cookies();
     const token = store.get("auth_token")?.value;
@@ -20,7 +22,9 @@ async function getUserIdFromCookie(): Promise<ObjectId | null> {
 
 export const runtime = "nodejs";
 
+// =======================
 // Allowed genders
+// =======================
 const GENDERS = ["male", "female", "other"] as const;
 type GenderType = (typeof GENDERS)[number];
 
@@ -56,7 +60,13 @@ export async function GET() {
                     email: user.email,
                     mobile: user.mobile,
                     bloodGroup: user.bloodGroup,
-                    address: user.address ?? "",
+
+                    // ✅ Address (4 fields)
+                    village: user.village ?? "",
+                    union: user.union ?? "",
+                    upazila: user.upazila ?? "",
+                    district: user.district ?? "",
+
                     lastDonationDate: user.lastDonationDate
                         ? user.lastDonationDate.toISOString().slice(0, 10)
                         : "",
@@ -65,7 +75,6 @@ export async function GET() {
                     profileImage: user.profileImage ?? "",
                     isAdmin: user.isAdmin ?? false,
 
-                    // New fields (type-safe)
                     gender: user.gender ?? "",
                     birthDate: user.birthDate
                         ? user.birthDate.toISOString().slice(0, 10)
@@ -96,24 +105,57 @@ export async function PUT(req: Request) {
             );
         }
 
-        const body = await req.json();
+        const body: unknown = await req.json();
+
+        if (typeof body !== "object" || body === null) {
+            return NextResponse.json(
+                { success: false, message: "অবৈধ ডাটা।" },
+                { status: 400 }
+            );
+        }
 
         const {
             name,
             mobile,
             bloodGroup,
-            address,
+
+            // ✅ Address fields
+            village,
+            union,
+            upazila,
+            district,
+
             lastDonationDate,
             lastDonationPlace,
             totalDonations,
             profileImage,
+
+            gender,
+            birthDate,
+
             currentPassword,
             newPassword,
+        } = body as {
+            name?: string;
+            mobile?: string;
+            bloodGroup?: string;
 
-            // New fields
-            gender,
-            birthDate
-        } = body;
+            village?: string;
+            union?: string;
+            upazila?: string;
+            district?: string;
+
+            lastDonationDate?: string;
+            lastDonationPlace?: string;
+            totalDonations?: number;
+            profileImage?: string;
+
+            gender?: string;
+            birthDate?: string;
+
+            currentPassword?: string;
+            newPassword?: string;
+        };
 
         if (!name || !mobile || !bloodGroup) {
             return NextResponse.json(
@@ -133,21 +175,32 @@ export async function PUT(req: Request) {
             );
         }
 
-        // Type-safe update object
+        // =======================
+        // Update object (type-safe)
+        // =======================
         const updateFields: Partial<Doaner> = {
             name,
             mobile,
             bloodGroup,
-            address: address ?? "",
+
+            village: village ?? "",
+            union: union ?? "",
+            upazila: upazila ?? "",
+            district: district ?? "",
+
             lastDonationPlace: lastDonationPlace ?? "",
-            totalDonations: typeof totalDonations === "number" ? totalDonations : 0,
+            totalDonations:
+                typeof totalDonations === "number" ? totalDonations : 0,
+
             updatedAt: new Date(),
         };
 
         // Last Donation Date
         if (typeof lastDonationDate === "string" && lastDonationDate.trim()) {
             const d = new Date(lastDonationDate);
-            if (!isNaN(d.getTime())) updateFields.lastDonationDate = d;
+            if (!isNaN(d.getTime())) {
+                updateFields.lastDonationDate = d;
+            }
         } else {
             updateFields.lastDonationDate = null;
         }
@@ -157,12 +210,12 @@ export async function PUT(req: Request) {
             updateFields.profileImage = profileImage;
         }
 
-        // Gender (type-safe)
+        // Gender (validated)
         if (typeof gender === "string" && GENDERS.includes(gender as GenderType)) {
             updateFields.gender = gender as GenderType;
         }
 
-        // Birth Date (type-safe)
+        // Birth Date
         if (typeof birthDate === "string" && birthDate.trim()) {
             const d = new Date(birthDate);
             if (!isNaN(d.getTime())) {
@@ -170,7 +223,9 @@ export async function PUT(req: Request) {
             }
         }
 
+        // =======================
         // Password change
+        // =======================
         if (newPassword && newPassword.trim() !== "") {
             if (!currentPassword) {
                 return NextResponse.json(
@@ -179,7 +234,11 @@ export async function PUT(req: Request) {
                 );
             }
 
-            const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+            const isMatch = await bcrypt.compare(
+                currentPassword,
+                user.passwordHash
+            );
+
             if (!isMatch) {
                 return NextResponse.json(
                     { success: false, message: "বর্তমান পাসওয়ার্ড সঠিক নয়।" },
@@ -189,7 +248,10 @@ export async function PUT(req: Request) {
 
             if (newPassword.length < 6) {
                 return NextResponse.json(
-                    { success: false, message: "নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।" },
+                    {
+                        success: false,
+                        message: "নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।",
+                    },
                     { status: 400 }
                 );
             }

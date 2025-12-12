@@ -10,11 +10,17 @@ interface ProfileData {
     email: string;
     mobile: string;
     bloodGroup: string;
-    address: string;
+
+    // ✅ ঠিকানা (৪টি ফিল্ড)
+    village: string;
+    union: string;
+    upazila: string;
+    district: string;
+
     lastDonationDate: string;
     lastDonationPlace: string;
     totalDonations: number;
-    profileImage: string; // base64 বা ""
+    profileImage: string;
     gender: Gender;
     birthDate: string; // YYYY-MM-DD
 }
@@ -22,12 +28,18 @@ interface ProfileData {
 export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+
     const [profile, setProfile] = useState<ProfileData>({
         name: "",
         email: "",
         mobile: "",
         bloodGroup: "",
-        address: "",
+
+        village: "",
+        union: "",
+        upazila: "",
+        district: "",
+
         lastDonationDate: "",
         lastDonationPlace: "",
         totalDonations: 0,
@@ -43,23 +55,34 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const res = await fetch("/api/profile");
-                const json = await res.json();
+                const res = await fetch("/api/profile", { cache: "no-store" });
+                const json: unknown = await res.json();
 
                 if (!res.ok) {
-                    toast.error(json.message ?? "প্রোফাইল লোড করতে সমস্যা হয়েছে।");
-                    setLoading(false);
+                    const msg =
+                        typeof json === "object" && json && "message" in json
+                            ? String((json as { message?: unknown }).message ?? "")
+                            : "";
+                    toast.error(msg || "প্রোফাইল লোড করতে সমস্যা হয়েছে।");
                     return;
                 }
 
-                const data = json.data as ProfileData;
+                const data =
+                    typeof json === "object" && json && "data" in json
+                        ? (json as { data: Partial<ProfileData> }).data
+                        : {};
 
                 setProfile({
-                    name: data.name,
-                    email: data.email,
+                    name: data.name ?? "",
+                    email: data.email ?? "",
                     mobile: data.mobile ?? "",
                     bloodGroup: data.bloodGroup ?? "",
-                    address: data.address ?? "",
+
+                    village: data.village ?? "",
+                    union: data.union ?? "",
+                    upazila: data.upazila ?? "",
+                    district: data.district ?? "",
+
                     lastDonationDate: data.lastDonationDate ?? "",
                     lastDonationPlace: data.lastDonationPlace ?? "",
                     totalDonations: data.totalDonations ?? 0,
@@ -143,35 +166,48 @@ export default function ProfilePage() {
                 name: profile.name,
                 mobile: profile.mobile,
                 bloodGroup: profile.bloodGroup,
-                address: profile.address,
+
+                // ✅ ঠিকানা (৪টি)
+                village: profile.village,
+                union: profile.union,
+                upazila: profile.upazila,
+                district: profile.district,
+
                 lastDonationDate: profile.lastDonationDate,
                 lastDonationPlace: profile.lastDonationPlace,
                 totalDonations: profile.totalDonations,
                 profileImage: profile.profileImage,
-                // নতুন ফিল্ড
-                gender: profile.gender,
-                birthDate: profile.birthDate,
+
+                gender: profile.gender || undefined,
+                birthDate: profile.birthDate || undefined,
+
                 currentPassword: currentPassword || undefined,
                 newPassword: newPassword || undefined,
             };
 
             const res = await fetch("/api/profile", {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
 
-            const json = await res.json();
+            const json: unknown = await res.json();
 
             if (!res.ok) {
-                toast.error(json.message ?? "প্রোফাইল আপডেট ব্যর্থ হয়েছে।");
-                setSaving(false);
+                const msg =
+                    typeof json === "object" && json && "message" in json
+                        ? String((json as { message?: unknown }).message ?? "")
+                        : "";
+                toast.error(msg || "প্রোফাইল আপডেট ব্যর্থ হয়েছে।");
                 return;
             }
 
-            toast.success(json.message ?? "প্রোফাইল আপডেট হয়েছে।");
+            const okMsg =
+                typeof json === "object" && json && "message" in json
+                    ? String((json as { message?: unknown }).message ?? "")
+                    : "";
+
+            toast.success(okMsg || "প্রোফাইল আপডেট হয়েছে।");
 
             setCurrentPassword("");
             setNewPassword("");
@@ -212,10 +248,7 @@ export default function ProfilePage() {
                                 <div className="avatar">
                                     <div className="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={avatarSrc ?? "/avatar.png"}
-                                            alt="Profile"
-                                        />
+                                        <img src={avatarSrc ?? "/avatar.png"} alt="Profile" />
                                     </div>
                                 </div>
 
@@ -254,6 +287,7 @@ export default function ProfilePage() {
                         <div className="card bg-base-100 shadow-md">
                             <div className="card-body">
                                 <form onSubmit={handleSubmit} className="space-y-6">
+                                    <h2 className="font-semibold mb-2">ব্যক্তিগত তথ্য</h2>
                                     <div className="grid gap-4 md:grid-cols-2">
                                         <div className="form-control">
                                             <label className="label">
@@ -355,65 +389,107 @@ export default function ProfilePage() {
                                         </div>
                                     </div>
 
-                                    <div className="form-control">
-                                        <label className="label">
-                                            <span className="label-text">ঠিকানা</span>
-                                        </label>
-                                        <textarea
-                                            name="address"
-                                            className="textarea textarea-bordered w-full"
-                                            rows={3}
-                                            value={profile.address}
-                                            onChange={handleInputChange}
-                                        />
+                                    {/* ✅ ঠিকানা ৪টি ফিল্ড */}
+                                    <div>
+                                        <h2 className="font-semibold mb-2">ঠিকানা</h2>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="form-control">
+                                                <label className="label">
+                                                    <span className="label-text">গ্রাম</span>
+                                                </label>
+                                                <input
+                                                    name="village"
+                                                    type="text"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.village}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+
+                                            <div className="form-control">
+                                                <label className="label">
+                                                    <span className="label-text">ইউনিয়ন</span>
+                                                </label>
+                                                <input
+                                                    name="union"
+                                                    type="text"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.union}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+
+                                            <div className="form-control">
+                                                <label className="label">
+                                                    <span className="label-text">উপজেলা</span>
+                                                </label>
+                                                <input
+                                                    name="upazila"
+                                                    type="text"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.upazila}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+
+                                            <div className="form-control">
+                                                <label className="label">
+                                                    <span className="label-text">জেলা</span>
+                                                </label>
+                                                <input
+                                                    name="district"
+                                                    type="text"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.district}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="grid gap-4 md:grid-cols-3">
-                                        <div className="form-control">
+                                    <div>
+                                        <h2 className="font-semibold mb-2">রক্তদান সম্পর্কিত তথ্য</h2>
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="form-control mb-3">
+                                                <label className="label">
+                                                    <span className="label-text">সর্বশেষ রক্তদানের তারিখ</span>
+                                                </label>
+                                                <input
+                                                    name="lastDonationDate"
+                                                    type="date"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.lastDonationDate}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+    
+                                            <div className="form-control md:col-span-2">
+                                                <label className="label">
+                                                    <span className="label-text">সর্বশেষ রক্তদানের স্থান</span>
+                                                </label>
+                                                <input
+                                                    name="lastDonationPlace"
+                                                    type="text"
+                                                    className="input input-bordered w-full"
+                                                    value={profile.lastDonationPlace}
+                                                    onChange={handleInputChange}
+                                                />
+                                            </div>
+                                        </div>
+    
+                                        <div className="form-control max-w-xs">
                                             <label className="label">
-                                                <span className="label-text">
-                                                    সর্বশেষ রক্তদানের তারিখ
-                                                </span>
+                                                <span className="label-text">মোট কতবার রক্তদান করেছেন</span>
                                             </label>
                                             <input
-                                                name="lastDonationDate"
-                                                type="date"
+                                                name="totalDonations"
+                                                type="number"
+                                                min={0}
                                                 className="input input-bordered w-full"
-                                                value={profile.lastDonationDate}
+                                                value={profile.totalDonations}
                                                 onChange={handleInputChange}
                                             />
                                         </div>
-
-                                        <div className="form-control md:col-span-2">
-                                            <label className="label">
-                                                <span className="label-text">
-                                                    সর্বশেষ রক্তদানের স্থান
-                                                </span>
-                                            </label>
-                                            <input
-                                                name="lastDonationPlace"
-                                                type="text"
-                                                className="input input-bordered w-full"
-                                                value={profile.lastDonationPlace}
-                                                onChange={handleInputChange}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-control max-w-xs">
-                                        <label className="label">
-                                            <span className="label-text">
-                                                মোট কতবার রক্তদান করেছেন
-                                            </span>
-                                        </label>
-                                        <input
-                                            name="totalDonations"
-                                            type="number"
-                                            min={0}
-                                            className="input input-bordered w-full"
-                                            value={profile.totalDonations}
-                                            onChange={handleInputChange}
-                                        />
                                     </div>
 
                                     <div className="divider">পাসওয়ার্ড পরিবর্তন (অপশনাল)</div>
@@ -443,17 +519,13 @@ export default function ProfilePage() {
                                         </div>
                                         <div className="form-control">
                                             <label className="label">
-                                                <span className="label-text">
-                                                    নতুন পাসওয়ার্ড কনফার্ম
-                                                </span>
+                                                <span className="label-text">নতুন পাসওয়ার্ড কনফার্ম</span>
                                             </label>
                                             <input
                                                 type="password"
                                                 className="input input-bordered w-full"
                                                 value={confirmNewPassword}
-                                                onChange={(e) =>
-                                                    setConfirmNewPassword(e.target.value)
-                                                }
+                                                onChange={(e) => setConfirmNewPassword(e.target.value)}
                                             />
                                         </div>
                                     </div>

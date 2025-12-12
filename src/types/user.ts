@@ -7,17 +7,17 @@ export interface Doaner {
     mobile: string;
     bloodGroup: string;
     passwordHash: string;
-
     isApproved: boolean;
-    isAdmin?: boolean;  // ✅ admin flag
-    isBanned?: boolean; // ✅ banned flag
-
-    address?: string;
+    isAdmin?: boolean;
+    isBanned?: boolean;
+    village?: string;
+    union?: string;
+    upazila?: string;
+    district?: string;
     lastDonationDate?: Date | null;
     lastDonationPlace?: string;
     totalDonations?: number;
     profileImage?: string;
-
     createdAt: Date;
     updatedAt: Date;
     gender?: "male" | "female" | "other";

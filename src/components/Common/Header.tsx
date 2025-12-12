@@ -233,7 +233,7 @@ function Header() {
                         className="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 p-2 shadow"
                     >
                         <li>
-                            <button type="button">হোম</button>
+                            <Link href={'/'}>হোম</Link>
                         </li>
                         <li>
                             <button type="button">Submenu 1</button>
@@ -253,29 +253,15 @@ function Header() {
             </div>
 
             <div className="navbar-center hidden lg:flex">
-                <ul className="menu menu-horizontal px-1">
+                <ul className="menu menu-horizontal px-1 gap-2">
                     <li>
-                        <button type="button" className="btn btn-ghost btn-sm">
-                            হোম
-                        </button>
+                        <Link className="btn btn-ghost btn-sm" href={'/'}>হোম</Link>
                     </li>
                     <li>
-                        <details>
-                            <summary>মেনু</summary>
-                            <ul className="p-2 bg-base-100 w-40 z-10">
-                                <li>
-                                    <button type="button">Submenu 1</button>
-                                </li>
-                                <li>
-                                    <button type="button">Submenu 2</button>
-                                </li>
-                            </ul>
-                        </details>
+                        <Link className="btn btn-ghost btn-sm" href={'/'}>সহযোগী সংগঠন</Link>
                     </li>
                     <li>
-                        <button type="button" className="btn btn-ghost btn-sm">
-                            যোগাযোগ
-                        </button>
+                        <Link className="btn btn-ghost btn-sm" href={'/'}>ডোনার পোস্ট কার্ড</Link>
                     </li>
                 </ul>
             </div>
