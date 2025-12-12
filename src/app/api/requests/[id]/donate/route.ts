@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequestStatus } from "@/types/admin";
 
 export const runtime = "nodejs";
+
+interface DonateBody {
+    doanerId?: string;
+}
 
 export async function POST(
     req: NextRequest,
@@ -19,10 +22,9 @@ export async function POST(
             );
         }
 
-        const body = await req.json();
-        const { doanerId } = body as { doanerId?: string };
+        const body = (await req.json()) as DonateBody;
 
-        if (!doanerId || !ObjectId.isValid(doanerId)) {
+        if (!body.doanerId || !ObjectId.isValid(body.doanerId)) {
             return NextResponse.json(
                 { success: false, message: "সঠিক ডোনার নির্বাচন করুন।" },
                 { status: 400 }
@@ -33,22 +35,19 @@ export async function POST(
         const requestsCol = db.collection("blood_requests");
         const doanersCol = db.collection("doaners");
 
-        const request = await requestsCol.findOne({
-            _id: new ObjectId(id),
-        });
+        const requestId = new ObjectId(id);
+        const donorId = new ObjectId(body.doanerId);
 
-        if (!request) {
+        const requestDoc = await requestsCol.findOne({ _id: requestId });
+        if (!requestDoc) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্ট পাওয়া যায়নি।" },
                 { status: 404 }
             );
         }
 
-        const donor = await doanersCol.findOne({
-            _id: new ObjectId(doanerId),
-        });
-
-        if (!donor) {
+        const donorDoc = await doanersCol.findOne({ _id: donorId });
+        if (!donorDoc) {
             return NextResponse.json(
                 { success: false, message: "ডোনার পাওয়া যায়নি।" },
                 { status: 404 }
@@ -57,24 +56,27 @@ export async function POST(
 
         const now = new Date();
 
-        // ✅ Update request
+        // 1) Request -> completed
         await requestsCol.updateOne(
-            { _id: new ObjectId(id) },
+            { _id: requestId },
             {
                 $set: {
-                    status: "completed" as BloodRequestStatus,
+                    status: "completed",
                     updatedAt: now,
                 },
             }
         );
 
-        // ✅ Update donor stats
+        // 2) Donor stats update
         await doanersCol.updateOne(
-            { _id: donor._id },
+            { _id: donorId },
             {
                 $set: {
                     lastDonationDate: now,
-                    lastDonationPlace: request.hospitalAddress,
+                    lastDonationPlace:
+                        typeof requestDoc.hospitalAddress === "string"
+                            ? requestDoc.hospitalAddress
+                            : "",
                     updatedAt: now,
                 },
                 $inc: {
@@ -84,10 +86,7 @@ export async function POST(
         );
 
         return NextResponse.json(
-            {
-                success: true,
-                message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।",
-            },
+            { success: true, message: "ডোনেশন সফলভাবে সম্পন্ন হয়েছে।" },
             { status: 200 }
         );
     } catch (error) {
