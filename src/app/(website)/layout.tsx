@@ -3,6 +3,7 @@ import { Anek_Bangla } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import Header from "@/components/Common/Header";
+import Nav from "@/components/Common/Nav";
 
 const anekBangla = Anek_Bangla({
   variable: "--font-anek-bangla",
@@ -25,6 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="min-h-screen">
           {children}
         </div>
+        <footer>
+          <Nav />
+        </footer>
 
         <Toaster position="top-center" />
       </body>

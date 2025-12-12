@@ -1,7 +1,57 @@
 export const dynamic = "force-dynamic";
-export const revalidate = 0; 
+export const revalidate = 0;
+
 import { getDb } from "@/lib/mongodb";
 import { Doaner } from "@/types/user";
+import { IconCalendar, IconDroplet, IconTrophy, IconUserPlus, IconUsers } from "@tabler/icons-react";
+
+type LeaderItem = {
+    id: string;
+    name: string;
+    mobile?: string;
+    bloodGroup: string;
+    totalDonations: number;
+    profileImage: string;
+    lastDonationDate?: Date | null;
+    lastDonationPlace?: string;
+};
+
+// ---------- Small SVG icons (Tabler-ish) ----------
+
+function StatCard(props: {
+    title: string;
+    value: number;
+    subtitle: string;
+    icon: React.ReactNode;
+}) {
+    const { title, value, subtitle, icon } = props;
+
+    return (
+        <div className="card bg-base-100 shadow-md hover:scale-105 transition-transform">
+            <div className="card-body p-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-xs text-base-content/60">{title}</p>
+                        <p className="mt-2 text-3xl font-bold leading-none">{value}</p>
+                        <p className="mt-2 text-xs text-base-content/60">{subtitle}</p>
+                    </div>
+
+                    <div className="rounded-xl bg-primary/15 p-3 text-primary">
+                        {icon}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "D";
+    const first = parts[0]?.[0] ?? "D";
+    const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+    return (first + last).toUpperCase();
+}
 
 // Server component
 export default async function AdminDashboardPage() {
@@ -45,9 +95,12 @@ export default async function AdminDashboardPage() {
             {
                 projection: {
                     name: 1,
+                    mobile: 1,
                     bloodGroup: 1,
                     totalDonations: 1,
                     profileImage: 1,
+                    lastDonationDate: 1,
+                    lastDonationPlace: 1,
                 },
             }
         )
@@ -55,8 +108,12 @@ export default async function AdminDashboardPage() {
         .limit(3)
         .toArray();
 
-    const leaderboard = leaderboardDocs.map((d) => ({
+
+    const leaderboard: LeaderItem[] = leaderboardDocs.map((d) => ({
         id: d._id?.toString() ?? "",
+        mobile: d.mobile,
+        lastDonationDate: d.lastDonationDate,
+        lastDonationPlace: d.lastDonationPlace,
         name: d.name,
         bloodGroup: d.bloodGroup,
         totalDonations: d.totalDonations ?? 0,
@@ -65,91 +122,143 @@ export default async function AdminDashboardPage() {
 
     return (
         <main className="min-h-screen bg-base-200 py-8">
-            <div className="max-w-6xl mx-auto px-4">
-                <h1 className="text-2xl font-bold mb-6">অ্যাডমিন ড্যাশবোর্ড</h1>
+            <div className="w-full px-4 space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold">অ্যাডমিন ড্যাশবোর্ড</h1>
+                        <p className="text-sm text-base-content/60 mt-1">
+                            ডোনার ও ডোনেশন সংক্ষিপ্ত পরিসংখ্যান
+                        </p>
+                    </div>
+                </div>
 
                 {/* Top stats cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-                    <div className="card bg-base-100 shadow-md">
-                        <div className="card-body">
-                            <h2 className="card-title text-sm">মোট ডোনার</h2>
-                            <p className="text-3xl font-bold">{totalDonors}</p>
-                            <p className="text-xs text-base-content/60">
-                                অনুমোদিত ডোনারের সংখ্যা
-                            </p>
-                        </div>
-                    </div>
+                <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-4">
+                    <StatCard
+                        title="মোট ডোনার"
+                        value={totalDonors}
+                        subtitle="অনুমোদিত ডোনারের সংখ্যা"
+                        icon={<IconUsers />}
+                    />
 
-                    <div className="card bg-base-100 shadow-md">
-                        <div className="card-body">
-                            <h2 className="card-title text-sm">এ মাসে নতুন ডোনার</h2>
-                            <p className="text-3xl font-bold">{thisMonthDonors}</p>
-                            <p className="text-xs text-base-content/60">
-                                চলতি মাসে অনুমোদিত নতুন ডোনার
-                            </p>
-                        </div>
-                    </div>
+                    <StatCard
+                        title="এ মাসে নতুন ডোনার"
+                        value={thisMonthDonors}
+                        subtitle="চলতি মাসে অনুমোদিত নতুন ডোনার"
+                        icon={<IconUserPlus />}
+                    />
 
-                    <div className="card bg-base-100 shadow-md">
-                        <div className="card-body">
-                            <h2 className="card-title text-sm">মোট ব্লাড ডোনেশন</h2>
-                            <p className="text-3xl font-bold">{totalDonations}</p>
-                            <p className="text-xs text-base-content/60">
-                                মোট নিবন্ধিত রক্তদান সংখ্যা
-                            </p>
-                        </div>
-                    </div>
+                    <StatCard
+                        title="মোট ব্লাড ডোনেশন"
+                        value={totalDonations}
+                        subtitle="মোট নিবন্ধিত রক্তদান সংখ্যা"
+                        icon={<IconDroplet />}
+                    />
 
-                    <div className="card bg-base-100 shadow-md">
-                        <div className="card-body">
-                            <h2 className="card-title text-sm">এ মাসে ব্লাড ডোনেশন</h2>
-                            <p className="text-3xl font-bold">{thisMonthDonations}</p>
-                            <p className="text-xs text-base-content/60">
-                                এই মাসে সর্বশেষ রক্তদান করা ডোনার সংখ্যা
-                            </p>
-                        </div>
-                    </div>
+                    <StatCard
+                        title="এ মাসে ব্লাড ডোনেশন"
+                        value={thisMonthDonations}
+                        subtitle="এই মাসে সর্বশেষ রক্তদান করা ডোনার সংখ্যা"
+                        icon={<IconCalendar />}
+                    />
                 </div>
 
                 {/* Leaderboard */}
                 <div className="card bg-base-100 shadow-md">
                     <div className="card-body">
-                        <h2 className="card-title mb-4">ডোনার লিডারবোর্ড (Top 3)</h2>
+                        <div className="flex items-center justify-between gap-3">
+                            <h2 className="card-title">
+                                <span className="inline-flex items-center gap-2">
+                                    <IconTrophy size={45} className="text-warning bg-success rounded-full p-2" />
+                                    ডোনার লিডারবোর্ড (Top 3)
+                                </span>
+                            </h2>
+                        </div>
 
                         {leaderboard.length === 0 ? (
-                            <p className="text-sm text-base-content/60">
+                            <p className="text-sm text-base-content/60 mt-2">
                                 এখনও কোনো রক্তদানের তথ্য নেই।
                             </p>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="table">
-                                    <thead>
+                            <div className="overflow-x-auto mt-3">
+                                <table className="table table-zebra border border-neutral rounded-t-none">
+                                    <thead className="bg-primary text-white">
                                         <tr>
-                                            <th>পজিশন</th>
-                                            <th>নাম</th>
+                                            <th>র‍্যাঙ্ক</th>
+                                            <th>ডোনার</th>
+                                            <th>শেষ রক্তদানের স্থান ও তারিখ</th>
                                             <th>ব্লাড গ্রুপ</th>
-                                            <th>মোট রক্তদান</th>
+                                            <th className="text-right">মোট রক্তদান</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {leaderboard.map((d, index) => (
-                                            <tr key={d.id}>
-                                                <td>
-                                                    {index + 1 === 1 && (
-                                                        <span className="badge badge-warning">১ম</span>
-                                                    )}
-                                                    {index + 1 === 2 && (
-                                                        <span className="badge badge-info">২য়</span>
-                                                    )}
-                                                    {index + 1 === 3 && (
-                                                        <span className="badge badge-success">৩য়</span>
-                                                    )}
-                                                </td>
-                                                <td>{d.name}</td>
-                                                <td>{d.bloodGroup}</td>
-                                                <td>{d.totalDonations}</td>
-                                            </tr>
-                                        ))}
+                                        {leaderboard.map((d, index) => {
+                                            const rankLabel =
+                                                index === 0 ? "১ম" : index === 1 ? "২য়" : "৩য়";
+
+                                            const rankBadge =
+                                                index === 0
+                                                    ? "btn btn-warning btn-circle"
+                                                    : index === 1
+                                                        ? "btn btn-info btn-circle"
+                                                        : "btn btn-success btn-circle";
+
+                                            const hasImage =
+                                                d.profileImage && d.profileImage.trim() !== "";
+
+                                            return (
+                                                <tr key={d.id}>
+                                                    <td>
+                                                        <span className={rankBadge}>{rankLabel}</span>
+                                                    </td>
+
+                                                    <td>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="avatar placeholder">
+                                                                <div className="bg-base-200 text-base-content rounded-full w-10 h-10 overflow-hidden flex items-center justify-center">
+                                                                    {hasImage ? (
+                                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                                        <img src={d.profileImage} alt={d.name} />
+                                                                    ) : (
+                                                                        <span className="text-sm font-semibold">
+                                                                            {getInitials(d.name)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-col">
+                                                                <span className="font-semibold">{d.name}</span>
+                                                                <span className="text-xs text-base-content/60">
+                                                                    মোবাইল: {d.mobile}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    <td>
+                                                        {d.lastDonationPlace ? (
+                                                            <span>
+                                                                <b>তারিখ:</b> {d.lastDonationDate ? new Date(d.lastDonationDate).toLocaleDateString() : "তারিখ নেই"} <br></br>
+                                                                <b>স্থান:</b> {d.lastDonationPlace}
+                                                            </span>
+                                                        ) : (
+                                                            <span>তথ্য নেই</span>
+                                                        )}
+                                                    </td>
+
+                                                    <td>
+                                                        <span className="btn btn-circle btn-primary">
+                                                            {d.bloodGroup}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="text-right font-semibold">
+                                                        {d.totalDonations}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
