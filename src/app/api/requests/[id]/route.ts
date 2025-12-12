@@ -1,8 +1,8 @@
-// src/app/api/admin/requests/[id]/route.ts
+// app/api/requests/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequest, BloodRequestStatus } from "@/types/admin";
+import type { BloodRequest, BloodRequestStatus } from "@/types/admin";
 
 export const runtime = "nodejs";
 
@@ -13,32 +13,32 @@ interface UpdateRequestBody {
     status?: BloodRequestStatus;
 }
 
+function badIdResponse() {
+    return NextResponse.json(
+        { success: false, message: "সঠিক রিকুয়েস্ট আইডি প্রয়োজন।" },
+        { status: 400 }
+    );
+}
+
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> } // ✅ Next.js 16 expects Promise
 ) {
     try {
-        const { id } = params;
+        const { id: rawId } = await context.params;
+        const id = (rawId ?? "").trim();
+
+        if (!ObjectId.isValid(id)) return badIdResponse();
+
         const body = (await req.json()) as UpdateRequestBody;
 
-        if (!id) {
-            return NextResponse.json(
-                { success: false, message: "আইডি প্রয়োজন।" },
-                { status: 400 }
-            );
-        }
-
-        const db = await getDb();
-        const col = db.collection<BloodRequest>("blood_requests");
-
-        const filter = { _id: new ObjectId(id) };
-
         const update: Partial<BloodRequest> = {};
+
         if (typeof body.units === "number" && body.units > 0) {
             update.units = body.units;
         }
 
-        if (body.donationDateTime && body.donationDateTime.trim() !== "") {
+        if (typeof body.donationDateTime === "string" && body.donationDateTime.trim() !== "") {
             const dt = new Date(body.donationDateTime);
             if (!Number.isNaN(dt.getTime())) {
                 update.donationDateTime = dt;
@@ -49,7 +49,7 @@ export async function PATCH(
             update.hospitalAddress = body.hospitalAddress;
         }
 
-        if (body.status) {
+        if (typeof body.status === "string" && body.status.trim() !== "") {
             update.status = body.status;
         }
 
@@ -62,7 +62,13 @@ export async function PATCH(
 
         update.updatedAt = new Date();
 
-        const result = await col.updateOne(filter, { $set: update });
+        const db = await getDb();
+        const col = db.collection<BloodRequest>("blood_requests");
+
+        const result = await col.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: update }
+        );
 
         if (result.matchedCount === 0) {
             return NextResponse.json(
@@ -76,7 +82,7 @@ export async function PATCH(
             { status: 200 }
         );
     } catch (error) {
-        console.error("PATCH /api/admin/requests/[id] error:", error);
+        console.error("PATCH /api/requests/[id] error:", error);
         return NextResponse.json(
             { success: false, message: "সার্ভার সমস্যা, পরে চেষ্টা করুন।" },
             { status: 500 }
@@ -86,16 +92,13 @@ export async function PATCH(
 
 export async function DELETE(
     _req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> } // ✅ Next.js 16 expects Promise
 ) {
     try {
-        const { id } = params;
-        if (!id) {
-            return NextResponse.json(
-                { success: false, message: "আইডি প্রয়োজন।" },
-                { status: 400 }
-            );
-        }
+        const { id: rawId } = await context.params;
+        const id = (rawId ?? "").trim();
+
+        if (!ObjectId.isValid(id)) return badIdResponse();
 
         const db = await getDb();
         const col = db.collection<BloodRequest>("blood_requests");
@@ -114,7 +117,7 @@ export async function DELETE(
             { status: 200 }
         );
     } catch (error) {
-        console.error("DELETE /api/admin/requests/[id] error:", error);
+        console.error("DELETE /api/requests/[id] error:", error);
         return NextResponse.json(
             { success: false, message: "সার্ভার সমস্যা, পরে চেষ্টা করুন।" },
             { status: 500 }

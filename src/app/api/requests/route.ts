@@ -1,43 +1,51 @@
 // src/app/api/requests/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
-import { BloodRequest, BloodRequestStatus, Gender } from "@/types/admin";
+import type { BloodRequest, Gender } from "@/types/admin";
 
 export const runtime = "nodejs";
 
 interface CreateRequestBody {
     bloodGroup: string;
-    donationDateTime: string;
+    donationDateTime: string; // datetime-local string
     units: number;
 
     requesterName: string;
     relationWithPatient?: string;
-    requesterPhone: string;
+    requesterPhone: string; // required
 
     patientName: string;
     patientAge?: number;
     patientGender?: Gender;
     hemoglobin?: number;
-    medicalReason?: string;
+    medicalReason?: string; // রোগীর সমস্যা
 
-    primaryPhone: string;
+    primaryPhone: string; // রোগীর ফোন
     alternatePhone?: string;
-    hospitalAddress: string;
+    hospitalAddress: string; // রক্তদানের স্থান
 }
 
-export async function POST(req: Request) {
+function isNonEmptyString(v: unknown): v is string {
+    return typeof v === "string" && v.trim().length > 0;
+}
+
+function isValidPhone(v: unknown): v is string {
+    return typeof v === "string" && v.trim().length >= 6;
+}
+
+export async function POST(req: NextRequest) {
     try {
         const body = (await req.json()) as CreateRequestBody;
 
-        // --- ভ্যালিডেশন ---
-        if (!body.bloodGroup) {
+        // ✅ validations
+        if (!isNonEmptyString(body.bloodGroup)) {
             return NextResponse.json(
                 { success: false, message: "রক্তের গ্রুপ প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!body.donationDateTime) {
+        if (!isNonEmptyString(body.donationDateTime)) {
             return NextResponse.json(
                 { success: false, message: "রক্ত দানের তারিখ ও সময় উল্লেখ করুন।" },
                 { status: 400 }
@@ -51,35 +59,35 @@ export async function POST(req: Request) {
             );
         }
 
-        if (!body.requesterName) {
+        if (!isNonEmptyString(body.requesterName)) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্টকারীর নাম প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!body.requesterPhone) {
+        if (!isValidPhone(body.requesterPhone)) {
             return NextResponse.json(
                 { success: false, message: "রিকুয়েস্টকারীর মোবাইল নম্বর প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!body.patientName) {
+        if (!isNonEmptyString(body.patientName)) {
             return NextResponse.json(
                 { success: false, message: "রোগীর নাম প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!body.primaryPhone) {
+        if (!isValidPhone(body.primaryPhone)) {
             return NextResponse.json(
-                { success: false, message: "রোগীর মোবাইল নম্বর প্রয়োজন।" },
+                { success: false, message: "রোগীর ফোন নম্বর প্রয়োজন।" },
                 { status: 400 }
             );
         }
 
-        if (!body.hospitalAddress) {
+        if (!isNonEmptyString(body.hospitalAddress)) {
             return NextResponse.json(
                 { success: false, message: "হাসপাতালের নাম ও ঠিকানা প্রয়োজন।" },
                 { status: 400 }
@@ -95,11 +103,13 @@ export async function POST(req: Request) {
         }
 
         const db = await getDb();
-        const col = db.collection<BloodRequest>("blood_requests");
+
+        // ✅ insert document should NOT require _id
+        const col = db.collection<Omit<BloodRequest, "_id">>("blood_requests");
 
         const now = new Date();
 
-        const doc: BloodRequest = {
+        const doc: Omit<BloodRequest, "_id"> = {
             bloodGroup: body.bloodGroup,
             donationDateTime: donationDate,
             units: body.units,
@@ -118,7 +128,7 @@ export async function POST(req: Request) {
             alternatePhone: body.alternatePhone,
             hospitalAddress: body.hospitalAddress,
 
-            status: "pending" satisfies BloodRequestStatus,
+            status: "pending",
             createdAt: now,
             updatedAt: now,
         };
@@ -126,10 +136,7 @@ export async function POST(req: Request) {
         await col.insertOne(doc);
 
         return NextResponse.json(
-            {
-                success: true,
-                message: "ব্লাড রিকুয়েস্ট সফলভাবে সাবমিট হয়েছে।",
-            },
+            { success: true, message: "ব্লাড রিকুয়েস্ট সফলভাবে সাবমিট হয়েছে।" },
             { status: 201 }
         );
     } catch (error) {
