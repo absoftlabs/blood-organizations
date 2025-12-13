@@ -247,7 +247,7 @@ export default function AdminRequestsPage() {
     }
 
     return (
-        <div>
+        <div className="p-4">
             <h1 className="text-xl font-bold mb-4">ব্লাড রিকুয়েস্ট লিস্ট</h1>
 
             {/* Main table */}

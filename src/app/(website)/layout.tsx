@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header>
           <Header />
         </header>
-        <div className="min-h-screen">
+        <div className="min-h-screen p-4 md:pt-6 md:pb-12">
           {children}
         </div>
         <footer>
